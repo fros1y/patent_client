@@ -143,6 +143,22 @@ class TestInpadoc:
         )
 
 
+class TestInpadocProblems:
+    def test_can_get_WO2016147045A1_claims(self):
+        doc = Inpadoc.objects.get("WO2016147045A1")
+        claims = doc.full_text.claims
+        # assert len(claims) == 45
+        print(claims[0].text)
+        assert (
+            claims[0].text
+            == "1. A device comprising:\n- an intelligent monitoring unit (202) that analyzes signals received from one or more external or internal sensing units (201), identifies the occurrence of specific conditions requiring action and determines an autonomous response in accordance with defined operating parameters and functions; and\n- one or more output units (203) provided at outputs of said intelligent monitoring unit (202) which generate said autonomous response."
+        )
+
+    def test_can_get_US20180003026_family(self):
+        pub = Inpadoc.objects.get("US 2018-0003026 A1")
+        assert len(list(pub.family)) == 10
+
+
 class TestEpoRegister:
     def test_can_get_epo_data(self):
         pub = Epo.objects.get("EP3221665A1")

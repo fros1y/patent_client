@@ -1,7 +1,11 @@
 import datetime
+import os
 from collections import OrderedDict
 
 from patent_client.uspto_exam_data import USApplication
+from patent_client.uspto_exam_data import USApplicationXmlParser
+
+FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 
 
 class TestPatentExaminationData:
@@ -128,3 +132,73 @@ class TestPatentExaminationData:
         assert "patent_number" in result
         assert "appl_id" in result
         assert "app_early_pub_number" in result
+
+
+class TestPEDSXMLParser:
+    def test_can_get_bib_data(self):
+        parser = USApplicationXmlParser()
+        with open(os.path.join(FIXTURES, "uspto_exam.xml"), "rb") as f:
+            iterator = parser.xml_file(f)
+            case = parser.case(next(iterator))
+
+            assert case == {
+                "aia_status": "true",
+                "app_atty_dock_number": "95083/328.2",
+                "app_cls_subcls": "436/135000",
+                "app_cust_number": "110205",
+                "app_early_pub_date": datetime.datetime(2016, 12, 29, 0, 0),
+                "app_early_pub_number": "US20160376630A1",
+                "app_entity_status": "SMALL",
+                "app_examiner": "WALLENHORST, MAUREEN",
+                "app_filing_date": datetime.datetime(2016, 1, 1, 0, 0),
+                "app_group_art_unit": "1797",
+                "app_status": "Abandoned -- Failure to Respond to an Office Action",
+                "app_status_date": datetime.datetime(2017, 5, 16, 0, 0),
+                "app_type": "Utility",
+                "appl_id": "14902559",
+                "applicants": [
+                    {
+                        "city": "Leipzig",
+                        "country": "DE",
+                        "name": "UNIVERSITÄT LEIPZIG",
+                        "region": "",
+                        "region_type": "State",
+                    }
+                ],
+                "file_location": "ELECTRONIC",
+                "inventors": [
+                    {
+                        "city": "Leipzig",
+                        "country": "DE",
+                        "name": "Thomas KREISING",
+                        "region": "",
+                        "region_type": "State",
+                    },
+                    {
+                        "city": "Leipzig",
+                        "country": "DE",
+                        "name": "Agneta PRASSE",
+                        "region": "",
+                        "region_type": "State",
+                    },
+                    {
+                        "city": "Leipzig",
+                        "country": "DE",
+                        "name": "Kristin ZCHARNACK",
+                        "region": "",
+                        "region_type": "State",
+                    },
+                    {
+                        "city": "Leipzig",
+                        "country": "DE",
+                        "name": "Thole ZUCHNER",
+                        "region": "",
+                        "region_type": "State",
+                    },
+                ],
+                "patent_title": "PHOSPHORESCENCE-BASED HYDROGEN PEROXIDE ASSAY FOR THE "
+                "DETECTION OF HYDROGEN PEROXIDE IN HUMAN SERUM AND WATER "
+                "SAMPLES",
+                "transactions": [],
+            }
+        # assert False

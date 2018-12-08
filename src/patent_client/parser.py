@@ -54,6 +54,8 @@ class PatentNumber:
                 self._handle_us_number()
             elif self.country == "CA":
                 self._handle_ca_number()
+            elif self.country == "WO":
+                self._handle_wo_number()
             else:
                 self.number = NUMBER_CLEAN_RE.sub("", number)
                 self._handle_us_number()
@@ -97,6 +99,12 @@ class PatentNumber:
         }
         self.type = ca_kind_codes[self.kind_code]
 
+    def _handle_wo_number(self):
+        if not self.kind_code:
+            self.kind_code = "A1"
+
+        self.type = "publication"
+
     def display(self):
         if self.country == "US":
             if self.type == "pre-grant publication":
@@ -112,6 +120,8 @@ class PatentNumber:
             return f"US {formatted_number} {self.kind_code}".strip()
         elif self.country == "CA":
             return f"CA {self.number} {self.kind_code}"
+        elif self.country == "WO":
+            return f"WO {self.number[:4]}/{self.number[4:]} {self.kind_code}".strip()
 
     def abbreviation(self):
         if self.type == "pre-grant publication":

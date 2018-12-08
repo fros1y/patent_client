@@ -1,6 +1,6 @@
 {
     "python.formatting.provider": "black",
-    "python.pythonPath": "venv/bin/python",
+    "python.pythonPath": "/Users/parkerhancock/.pyenv/shims/python",
     "restructuredtext.confPath": "",
     "python.linting.enabled": false
 }

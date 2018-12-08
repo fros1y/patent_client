@@ -87,7 +87,7 @@ def recur_accessor(obj, accessor):
             pass
         try:
             new_obj = obj[a]
-        except (KeyError, TypeError):
+        except (KeyError, TypeError, IndexError):
             new_obj = None
     if not rest:
         return new_obj

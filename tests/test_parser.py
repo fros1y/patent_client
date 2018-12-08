@@ -188,3 +188,21 @@ class TestPatentNumberParser:
         assert app.type == "reissue patent"
         assert app.display() == "CA 2967774 E"
         assert str(app) == "CA2967774E"
+
+    def test_can_handle_wo_publications(self):
+        app = parse("WO2018131485A1")
+        assert app.display() == "WO 2018/131485 A1"
+        assert app.country == "WO"
+        assert app.number == "2018131485"
+        assert app.kind_code == "A1"
+        assert str(app) == "WO2018131485A1"
+        assert app.type == "publication"
+
+    def test_can_handle_WO2018148832(self):
+        app = parse("WO2018148832A1")
+        assert app.display() == "WO 2018/148832 A1"
+        assert app.country == "WO"
+        assert app.number == "2018148832"
+        assert app.kind_code == "A1"
+        assert str(app) == "WO2018148832A1"
+        assert app.type == "publication"

@@ -16,6 +16,8 @@ from patent_client.util import Manager
 from patent_client.util import Model
 from patent_client.util import one_to_many
 
+# import lxml.etree as ET
+
 
 class HttpException(Exception):
     pass
@@ -159,7 +161,7 @@ class USApplicationManager(Manager):
                 raise HttpException("Packaging Request Failed!")
 
             start = time.time()
-            while time.time() - start < 60:
+            while time.time() - start < 300:
                 response = session.get(STATUS_URL.format(query_id=query_id))
                 if not response.ok:
                     raise HttpException("Status Request Failed!")
@@ -206,24 +208,27 @@ ns = dict(
 
 
 bib_data = dict(
-    appl_id=".//uscom:ApplicationNumberText",
-    app_filing_date=".//pat:FilingDate",
-    app_type=".//uscom:ApplicationTypeCategory",
-    app_cust_number=".//com:ContactText",
-    app_group_art_unit=".//uscom:GroupArtUnitNumber",
-    app_atty_dock_number=".//com:ApplicantFileReference",
-    patent_title=".//pat:InventionTitle",
-    app_status=".//uscom:ApplicationStatusCategory",
-    app_status_date=".//uscom:ApplicationStatusDate",
-    app_cls_subcls=".//pat:NationalSubclass",
-    app_early_pub_date=".//uspat:PatentPublicationIdentification/com:PublicationDate",
-    patent_number=".//uspat:PatentGrantIdentification/pat:PatentNumber",
-    patent_issue_date=".//uspat:PatentGrantIdentification/pat:GrantDate",
-    aia_status=".//uspat:FirstInventorToFileIndicator",
-    app_entity_status=".//uscom:BusinessEntityStatusCategory",
-    file_location=".//uscom:OfficialFileLocationCategory",
-    file_location_date=".//uscom:OfficialFileLocationDate",
-    app_examiner=".//pat:PrimaryExaminer//com:PersonFullName",
+    appl_id="./uscom:ApplicationNumberText",
+    app_filing_date="./pat:FilingDate",
+    app_type="./uscom:ApplicationTypeCategory",
+    app_group_art_unit="./uscom:GroupArtUnitNumber",
+    app_atty_dock_number="./com:ApplicantFileReference",
+    patent_title="./pat:InventionTitle",
+    app_status="./uscom:ApplicationStatusCategory",
+    app_status_date="./uscom:ApplicationStatusDate",
+    app_cls_subcls="./pat:PatentClassificationBag/pat:NationalClassification/pat:MainNationalClassification/pat:NationalSubclass",
+    app_early_pub_date="./uspat:PatentPublicationIdentification/com:PublicationDate",
+    patent_number="./uspat:PatentGrantIdentification/pat:PatentNumber",
+    patent_issue_date="./uspat:PatentGrantIdentification/pat:GrantDate",
+    aia_status="./uspat:FirstInventorToFileIndicator",
+    app_entity_status="./uscom:BusinessEntityStatusCategory",
+    file_location="./uscom:OfficialFileLocationCategory",
+    file_location_date="./uscom:OfficialFileLocationDate",
+)
+
+parties = dict(
+    app_cust_number="./com:CorrespondenceAddress/com:Contact/com:ContactText",
+    app_examiner="./pat:ExaminerBag/pat:PrimaryExaminer/com:Name/com:PersonName/com:PersonFullName",
 )
 
 
@@ -259,15 +264,16 @@ class USApplicationXmlParser:
         }
         for key in data.keys():
             if "date" in key and data.get(key, False) != "-":
-                data[key] = parse_dt(data[key]).date()
+                data[key] = parse_dt(data[key])
             elif data.get(key, False) == "-":
                 data[key] = None
         return data
 
     def parse_bib_data(self, element):
-        data = self.parse_element(element, bib_data)
-        pub_no = element.find(
-            ".//uspat:PatentPublicationIdentification/pat:PublicationNumber", ns
+        metadata = element.find("./uspat:PatentCaseMetadata", ns)
+        data = self.parse_element(metadata, bib_data)
+        pub_no = metadata.find(
+            "./uspat:PatentPublicationIdentification/pat:PublicationNumber", ns
         )
         if pub_no is not None:
             if len(pub_no.text) > 7:
@@ -278,15 +284,18 @@ class USApplicationXmlParser:
             if len(pub_no) < 11:
                 pub_no = pub_no[:4] + pub_no[4:].rjust(7, "0")
 
-            kind_code = element.find(
-                ".//uspat:PatentPublicationIdentification/com:PatentDocumentKindCode",
-                ns,
+            kind_code = metadata.find(
+                "./uspat:PatentPublicationIdentification/com:PatentDocumentKindCode", ns
             )
             if kind_code is None:
                 kind_code = ""
             else:
                 kind_code = kind_code.text
             data["app_early_pub_number"] = pub_no + kind_code
+
+        party_element = metadata.find("./pat:PartyBag", ns)
+        data = {**data, **self.parse_element(party_element, parties)}
+
         return data
 
     def parse_transaction_history(self, element):
@@ -301,10 +310,13 @@ class USApplicationXmlParser:
 
     def parse_inventors(self, element):
         output = list()
-        for inv_el in element.findall(
-            "./uspat:PatentRecord/uspat:PatentCaseMetadata/pat:PartyBag/pat:InventorBag/pat:Inventor",
-            ns,
-        ):
+        inventor_el = element.find(
+            "./uspat:PatentCaseMetadata/pat:PartyBag/pat:InventorBag", ns
+        )
+        if inventor_el is None:
+            return output
+
+        for inv_el in inventor_el.findall("./pat:Inventor", ns):
             data = self.parse_element(inv_el, inv_data)
             data["region_type"] = inv_el.find(
                 "./com:PublicationContact/com:GeographicRegionName", ns
@@ -317,34 +329,43 @@ class USApplicationXmlParser:
 
     def parse_applicants(self, element):
         output = list()
-        for app_el in element.findall(
-            "./uspat:PatentRecord/uspat:PatentCaseMetadata/pat:PartyBag/pat:ApplicantBag/pat:Applicant",
-            ns,
-        ):
+        applicant_el = element.find(
+            "./uspat:PatentCaseMetadata/pat:PartyBag/pat:ApplicantBag", ns
+        )
+        if applicant_el is None:
+            return output
+
+        for app_el in applicant_el.findall("./pat:Applicant", ns):
             data = self.parse_element(app_el, inv_data)
-            data["region_type"] = app_el.find(
+            region_el = app_el.find(
                 "./com:PublicationContact/com:GeographicRegionName", ns
-            ).attrib.get(
-                "{http://www.wipo.int/standards/XMLSchema/ST96/Common}geographicRegionCategory",
-                "",
             )
+            if region_el is not None:
+                data["region_type"] = region_el.attrib.get(
+                    "{http://www.wipo.int/standards/XMLSchema/ST96/Common}geographicRegionCategory",
+                    "",
+                )
             output.append(data)
         return output
 
     def case(self, element):
-        return {
-            **self.parse_bib_data(element),
-            **dict(
-                inventors=self.parse_inventors(element),
-                transactions=self.parse_transaction_history(element),
-                applicants=self.parse_applicants(element),
-            ),
-        }
+        try:
+            return {
+                **self.parse_bib_data(element),
+                **dict(
+                    inventors=self.parse_inventors(element),
+                    # transactions=self.parse_transaction_history(element),
+                    applicants=self.parse_applicants(element),
+                ),
+            }
+        except Exception as e:
+            print(ET.tostring(element, encoding="utf-8").decode("utf-8"))
+            raise e
 
     def xml_file(self, file_obj):
         try:
             for _, element in ET.iterparse(file_obj):
-                if "PatentRecordBag" in element.tag:
+                if element.tag == "{urn:us:gov:doc:uspto:patent}PatentRecord":
                     yield element
         except ET.ParseError as e:
             print(e)
